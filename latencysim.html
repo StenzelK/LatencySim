@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency Simulator for Controller Input</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50; /* Dark blue-grey background */
+            color: #ecf0f1; /* Light grey text */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #34495e; /* Slightly lighter blue-grey for container */
+            padding: 25px 35px;
+            border-radius: 10px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #1abc9c; /* Teal accent color */
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+        }
+
+        #gameMenu {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 30px 0;
+        }
+
+        .menu-item {
+            padding: 14px 18px;
+            margin: 10px 0;
+            background-color: #2c3e50; /* Darker background for items */
+            border: 2px solid transparent; /* Transparent border for consistent sizing */
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+            font-size: 1.15em;
+        }
+
+        .menu-item.active {
+            background-color: #1abc9c; /* Teal for active item */
+            color: #2c3e50; /* Dark text on active item */
+            font-weight: bold;
+            border-color: #16a085; /* Slightly darker teal border */
+            transform: scale(1.03); /* Slight zoom for active item */
+        }
+
+        .menu-item:not(.active):hover {
+            background-color: #4a627a; /* Hover effect for non-active items */
+            border-color: #5d7c99;
+        }
+
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px; /* Space between label, slider, and value */
+        }
+
+        .controls label {
+            font-size: 1.05em;
+            margin-bottom: 5px; /* Reduced margin as gap is used */
+        }
+
+        #latencySlider {
+            width: 85%;
+            cursor: pointer;
+            /* Custom slider track */
+            -webkit-appearance: none;
+            appearance: none;
+            height: 10px;
+            background: #2c3e50;
+            outline: none;
+            border-radius: 5px;
+        }
+
+        #latencySlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #1abc9c;
+            border-radius: 50%;
+            border: 2px solid #ecf0f1;
+        }
+
+        #latencySlider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #1abc9c;
+            border-radius: 50%;
+            border: 2px solid #ecf0f1;
+            cursor: pointer;
+        }
+
+
+        #latencyValue {
+            font-size: 1.1em;
+            color: #1abc9c;
+            font-weight: bold;
+            min-width: 70px; /* Ensure space for "XXX ms" */
+            text-align: center;
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.6em;
+            }
+            .menu-item {
+                font-size: 1em;
+                padding: 12px 15px;
+            }
+            #latencySlider {
+                width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Game Menu Latency Sim</h1>
+        
+        <ul id="gameMenu">
+            <li class="menu-item">Start New Journey</li>
+            <li class="menu-item">Load Saved Game</li>
+            <li class="menu-item">Game Settings</li>
+            <li class="menu-item">View Credits</li>
+            <li class="menu-item">Exit to Desktop</li>
+        </ul>
+
+        <div class="controls">
+            <label for="latencySlider">Input Latency (ms):</label>
+            <input type="range" id="latencySlider" min="0" max="2000" value="0" step="50">
+            <span id="latencyValue">0 ms</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuItems = document.querySelectorAll('#gameMenu .menu-item');
+            const latencySlider = document.getElementById('latencySlider');
+            const latencyValueDisplay = document.getElementById('latencyValue');
+
+            let currentLatencyMs = parseInt(latencySlider.value, 10);
+            let activeMenuItemIndex = 0;
+            let isProcessingInput = false; // Flag to prevent input stacking during latency
+
+            /**
+             * Simulates a delay (sleep) asynchronously.
+             * @param {number} ms - The number of milliseconds to wait.
+             * @returns {Promise<void>} A promise that resolves after the specified delay.
+             */
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            /**
+             * Updates the displayed latency value next to the slider.
+             */
+            function updateLatencyDisplay() {
+                latencyValueDisplay.textContent = `${currentLatencyMs} ms`;
+            }
+
+            /**
+             * Sets the active menu item by updating CSS classes.
+             * @param {number} newIndex - The index of the menu item to activate.
+             */
+            function setActiveMenuItem(newIndex) {
+                // Ensure newIndex is within bounds
+                if (newIndex < 0 || newIndex >= menuItems.length) {
+                    return;
+                }
+                menuItems[activeMenuItemIndex].classList.remove('active');
+                activeMenuItemIndex = newIndex;
+                menuItems[activeMenuItemIndex].classList.add('active');
+            }
+
+            // --- Initialization ---
+            setActiveMenuItem(0); // Set the first item as active by default
+            updateLatencyDisplay(); // Display initial latency value
+
+            // --- Event Listener for Latency Slider ---
+            latencySlider.addEventListener('input', (event) => {
+                currentLatencyMs = parseInt(event.target.value, 10);
+                updateLatencyDisplay();
+            });
+
+            // --- Event Listener for Keyboard Input (Simulating Controller) ---
+            document.addEventListener('keydown', async (event) => {
+                // If an input is already being processed (e.g., during a sleep), ignore new inputs.
+                // This prevents inputs from queuing up and executing rapidly after a delay.
+                if (isProcessingInput) {
+                    console.log('Input ignored: processing previous action.');
+                    return;
+                }
+
+                const recognizedKeys = ['ArrowUp', 'ArrowDown', 'Enter'];
+                if (!recognizedKeys.includes(event.key)) {
+                    return; // Ignore keys not relevant to menu navigation
+                }
+
+                event.preventDefault(); // Prevent default browser actions (like page scrolling with arrow keys)
+                isProcessingInput = true; // Mark that we are starting to process an input
+
+                // "Input Read": The key press is detected.
+                console.log(`Input read: ${event.key}. Current latency: ${currentLatencyMs}ms.`);
+
+                // "Sleep(n) after read": Apply the artificial latency.
+                if (currentLatencyMs > 0) {
+                    console.log(`Applying ${currentLatencyMs}ms latency...`);
+                    await sleep(currentLatencyMs); // Asynchronously wait
+                    console.log('Latency period finished. Processing action.');
+                } else {
+                    console.log('No latency. Processing action immediately.');
+                }
+
+                // Process the action after the potential delay
+                if (event.key === 'ArrowUp') {
+                    if (activeMenuItemIndex > 0) {
+                        setActiveMenuItem(activeMenuItemIndex - 1);
+                    }
+                } else if (event.key === 'ArrowDown') {
+                    if (activeMenuItemIndex < menuItems.length - 1) {
+                        setActiveMenuItem(activeMenuItemIndex + 1);
+                    }
+                } else if (event.key === 'Enter') {
+                    const selectedItem = menuItems[activeMenuItemIndex];
+                    console.log(`Selected: ${selectedItem.textContent.trim()}`);
+                    // You can replace this alert with any other action
+                    alert(`Menu Item Selected: ${selectedItem.textContent.trim()}`);
+                }
+                
+                isProcessingInput = false; // Mark that processing is complete, ready for next input
+            });
+
+            // Initial focus for keyboard navigation (optional, but good for UX)
+            // menuItems[0].focus(); // Not strictly necessary as we capture document keydown
+            console.log("Latency simulator initialized. Use ArrowUp, ArrowDown, and Enter keys to navigate the menu.");
+            console.log("Adjust the slider to change the input latency.");
+        });
+    </script>
+
+</body>
+</html>
